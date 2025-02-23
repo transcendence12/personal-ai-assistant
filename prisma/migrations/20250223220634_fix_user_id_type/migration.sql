@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "Conversation" ALTER COLUMN "userId" SET DATA TYPE BIGINT;
+
+-- AlterTable
+ALTER TABLE "UserMemory" ALTER COLUMN "userId" SET DATA TYPE BIGINT;
