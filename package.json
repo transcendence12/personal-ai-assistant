@@ -1,6 +1,8 @@
 {
   "devDependencies": {
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "nodemon": "^3.1.9",
+    "ts-node": "^10.9.2"
   },
   "name": "personal-ai-assistant",
   "version": "1.0.0",
@@ -18,8 +20,6 @@
   "dependencies": {
     "@types/node": "^22.13.5",
     "dotenv": "^16.4.7",
-    "grammy": "^1.35.0",
-    "nodemon": "^3.1.9",
-    "ts-node": "^10.9.2"
+    "grammy": "^1.35.0"
   }
 }
