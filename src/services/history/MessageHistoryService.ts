@@ -1,52 +1,74 @@
-import { Message, MessageSchema } from '../../types/chat';
+import { Message } from '../../types/chat';
 
 interface HistoryConfig {
   maxMessages: number;
 }
 
 export class MessageHistoryService {
+  // Tablica przechowująca wiadomości w pamięci
   private messages: Message[] = [];
+  
+  // Konfiguracja określająca maksymalną liczbę wiadomości
   private config: HistoryConfig;
 
-  constructor(config?: Partial<HistoryConfig>) {
-    this.config = {
-      maxMessages: config?.maxMessages || 3,
-    };
+  constructor(config: HistoryConfig) {
+    this.config = config;
   }
 
-  setMaxMessages(maxMessages: number): void {
-    this.config.maxMessages = maxMessages;
-    while (this.messages.length > maxMessages) {
-      this.messages.shift();
+  addMessage(role: 'user' | 'assistant' | 'system', content: string): void {
+    // System prompt jest zawsze pierwszy i tylko jeden
+    if (role === 'system') {
+      // Usuń stary system prompt jeśli istnieje
+      this.messages = this.messages.filter(m => m.role !== 'system');
+      // Dodaj nowy system prompt na początek
+      this.messages.unshift({ role, content });
+      return;
     }
-  }
 
-  addMessage(role: Message['role'], content: string): void {
-    const message = MessageSchema.parse({ role, content });
-    this.messages.push(message);
+    // Dodaj nową wiadomość
+    this.messages.push({ role, content });
+
+    // Zachowaj tylko ostatnie N wiadomości (nie licząc system prompt)
+    const systemMessage = this.messages.find(m => m.role === 'system');
+    const nonSystemMessages = this.messages.filter(m => m.role !== 'system');
     
-    if (this.messages.length > this.config.maxMessages) {
-      this.messages.shift();
+    if (nonSystemMessages.length > this.config.maxMessages) {
+      const keepMessages = nonSystemMessages.slice(-this.config.maxMessages);
+      this.messages = systemMessage 
+        ? [systemMessage, ...keepMessages] 
+        : keepMessages;
     }
   }
 
   getMessages(): Message[] {
-    return this.messages;
+    return [...this.messages]; // Zwracamy kopię tablicy aby zapobiec modyfikacji oryginalnej tablicy z zewnątrz
+  }
+
+  clearHistory(): void {
+    const systemMessage = this.messages.find(m => m.role === 'system');
+    this.messages = systemMessage ? [systemMessage] : [];
+  }
+
+  setMaxMessages(max: number): void {
+    this.config.maxMessages = max;
+    // Trim history if needed after changing max
+    const systemMessages = this.messages.filter(m => m.role === 'system');
+    const nonSystemMessages = this.messages.filter(m => m.role !== 'system');
+    this.messages = [
+      ...systemMessages,
+      ...nonSystemMessages.slice(-max)
+    ];
+  }
+
+  getConfig() {
+    return {
+      maxMessages: this.config.maxMessages
+    };
   }
 
   summarizeConversation(): string {
-    if (this.messages.length === 0) return '';
-    
     return this.messages
-      .map(msg => `${msg.role}: ${msg.content}`)
+      .map(m => `${m.role}: ${m.content.substring(0, 50)}...`)
       .join('\n');
-  }
-
-  clear(): void {
-    this.messages = [];
-  }
-
-  getConfig(): HistoryConfig {
-    return { ...this.config };
   }
 } 
