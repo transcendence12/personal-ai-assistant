@@ -5,7 +5,7 @@ import { ChatHandler } from "./handlers/chat";
 
 async function startBot() {
   const bot = new Bot(BOT_CONFIG.token);
-  const chatHandler = await ChatHandler.initialize();
+  const chatHandler = ChatHandler.initialize();
 
   bot.command("start", handleStart);
   bot.command("help", handleHelp);
@@ -27,7 +27,7 @@ async function startBot() {
     }
   });
 
-  console.log("🤖 Bot is starting...");
+  console.log("🤖 Freelance Mentor Bot is starting...");
   await bot.start();
 }
 

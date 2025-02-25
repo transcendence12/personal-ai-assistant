@@ -1,16 +1,17 @@
+import { z } from 'zod';
 import dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
 
+const ConfigSchema = z.object({
+    token: z.string().min(1),
+});
+
 // Bot configuration
-export const BOT_CONFIG = {
-    token: process.env.TELEGRAM_BOT_TOKEN || '',
-    options: {
-        // Add any bot options here
-        polling: true
-    }
-};
+export const BOT_CONFIG = ConfigSchema.parse({
+    token: process.env.TELEGRAM_BOT_TOKEN,
+});
 
 // OpenAI configuration
 export const OPENAI_CONFIG = {
