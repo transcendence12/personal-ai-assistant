@@ -25,8 +25,14 @@ export class ChatHandler {
   async handleMessage(ctx: Context): Promise<void> {
     try {
       // Walidacja kontekstu wiadomości
-      const validatedCtx = MessageContextSchema.parse(ctx);
-      const { message: { text }, chat: { id: chatId } } = validatedCtx;
+      const validatedCtx = MessageContextSchema.safeParse(ctx);
+      
+      if (!validatedCtx.success) {
+        console.error('Validation error:', validatedCtx.error.format());
+        throw new Error('Invalid message context');
+      }
+
+      const { message: { text }, chat: { id: chatId } } = validatedCtx.data;
 
       await ctx.api.sendChatAction(chatId, "typing");
       const response = await this.aiService.generateResponse(text);
