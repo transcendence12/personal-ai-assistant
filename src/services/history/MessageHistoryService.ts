@@ -5,7 +5,10 @@ interface HistoryConfig {
 }
 
 export class MessageHistoryService {
+  // Tablica przechowująca wiadomości w pamięci
   private messages: Message[] = [];
+  
+  // Konfiguracja określająca maksymalną liczbę wiadomości
   private config: HistoryConfig;
 
   constructor(config: HistoryConfig) {
@@ -17,8 +20,10 @@ export class MessageHistoryService {
       // System prompt zawsze na początku
       this.messages = [{ role, content }, ...this.messages.filter(m => m.role !== 'system')];
     } else {
+      // Dodaj nową wiadomość
       this.messages.push({ role, content });
-      // Zachowaj tylko N ostatnich wiadomości (nie licząc system prompt)
+      
+      // Zarządzanie limitem wiadomości
       const nonSystem = this.messages.filter(m => m.role !== 'system');
       if (nonSystem.length > this.config.maxMessages) {
         const system = this.messages.find(m => m.role === 'system');
