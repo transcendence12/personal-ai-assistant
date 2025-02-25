@@ -22,7 +22,7 @@ export class OpenAIService {
     const apiKey = z.string().min(1).parse(process.env.OPENAI_API_KEY);
 
     this.client = new OpenAI({ apiKey });
-    this.history = new MessageHistoryService();
+    this.history = new MessageHistoryService({ maxMessages: config.maxMessages });
     this.config = config;
   }
 

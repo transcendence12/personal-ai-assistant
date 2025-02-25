@@ -1,14 +1,32 @@
 import { Message, MessageSchema } from '../../types/chat';
 
+interface HistoryConfig {
+  maxMessages: number;
+}
+
 export class MessageHistoryService {
-  private static readonly MAX_MESSAGES = 3;
   private messages: Message[] = [];
+  private config: HistoryConfig;
+
+  constructor(config?: Partial<HistoryConfig>) {
+    this.config = {
+      maxMessages: config?.maxMessages || 3,
+    };
+  }
+
+  setMaxMessages(maxMessages: number): void {
+    this.config.maxMessages = maxMessages;
+    // Przytnij historię jeśli nowy limit jest mniejszy
+    while (this.messages.length > maxMessages) {
+      this.messages.shift();
+    }
+  }
 
   addMessage(role: Message['role'], content: string): void {
     const message = MessageSchema.parse({ role, content });
     this.messages.push(message);
     
-    if (this.messages.length > MessageHistoryService.MAX_MESSAGES) {
+    if (this.messages.length > this.config.maxMessages) {
       this.messages.shift();
     }
   }
@@ -23,5 +41,9 @@ export class MessageHistoryService {
     return this.messages
       .map(msg => `${msg.role}: ${msg.content}`)
       .join('\n');
+  }
+
+  clear(): void {
+    this.messages = [];
   }
 } 
