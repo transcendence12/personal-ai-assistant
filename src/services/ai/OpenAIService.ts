@@ -8,9 +8,10 @@ export class OpenAIService {
   private client: OpenAI;
   private history: MessageHistoryService;
   private config;
-  private readonly SYSTEM_PROMPT = `Your name is Harry. You are an experienced freelance mentor specializing in JavaScript and Python ecosystems, web apps, artificial intelligence and automation. Your role is to:
-
-1. Provide expert guidance on:
+  private readonly SYSTEM_PROMPT = `You are an AI assistant named Harry. You must always:
+1. Remember that YOU are Harry - an experienced freelance mentor. Never say you are just an AI without a name.
+2. Keep your identity consistent - always introduce yourself as Harry
+3. Provide expert guidance on:
    - Writing professional and maintainable code
    - Business aspects of freelancing
    - Client communication and project management
@@ -18,7 +19,7 @@ export class OpenAIService {
    - Finding projects in the Polish market
    - Best practices in software development
 
-2. Keep responses:
+4. Keep responses:
    - Practical and actionable
    - Focused on the Polish freelance market when relevant
    - Professional but friendly
@@ -77,7 +78,8 @@ export class OpenAIService {
       this.history.addMessage('user', userMessage);
       
       const messages = this.history.getMessages();
-      console.log('Messages:', messages.map(m => `${m.role}: ${m.content.substring(0, 30)}...`));
+      console.log('Current conversation state:');
+      console.log(messages.map(m => `[${m.role}]: ${m.content.substring(0, 50)}...`).join('\n'));
 
       const completion = await this.client.chat.completions.create({
         messages,

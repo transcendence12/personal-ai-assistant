@@ -16,28 +16,37 @@ export class MessageHistoryService {
   }
 
   addMessage(role: 'user' | 'assistant' | 'system', content: string): void {
+    // System prompt jest zawsze pierwszy i tylko jeden
     if (role === 'system') {
-      // System prompt zawsze na początku
-      this.messages = [{ role, content }, ...this.messages.filter(m => m.role !== 'system')];
-    } else {
-      // Dodaj nową wiadomość (zarówno user jak i assistant)
-      this.messages.push({ role, content });
-      
-      // Zarządzanie limitem wiadomości
-      const nonSystem = this.messages.filter(m => m.role !== 'system');
-      if (nonSystem.length > this.config.maxMessages) {
-        const system = this.messages.find(m => m.role === 'system');
-        this.messages = system ? [system, ...nonSystem.slice(-this.config.maxMessages)] : nonSystem.slice(-this.config.maxMessages);
-      }
+      // Usuń stary system prompt jeśli istnieje
+      this.messages = this.messages.filter(m => m.role !== 'system');
+      // Dodaj nowy system prompt na początek
+      this.messages.unshift({ role, content });
+      return;
+    }
+
+    // Dodaj nową wiadomość
+    this.messages.push({ role, content });
+
+    // Zachowaj tylko ostatnie N wiadomości (nie licząc system prompt)
+    const systemMessage = this.messages.find(m => m.role === 'system');
+    const nonSystemMessages = this.messages.filter(m => m.role !== 'system');
+    
+    if (nonSystemMessages.length > this.config.maxMessages) {
+      const keepMessages = nonSystemMessages.slice(-this.config.maxMessages);
+      this.messages = systemMessage 
+        ? [systemMessage, ...keepMessages] 
+        : keepMessages;
     }
   }
 
   getMessages(): Message[] {
-    return this.messages;
+    return [...this.messages]; // Zwracamy kopię tablicy
   }
 
   clearHistory(): void {
-    this.messages = this.messages.filter(m => m.role === 'system');
+    const systemMessage = this.messages.find(m => m.role === 'system');
+    this.messages = systemMessage ? [systemMessage] : [];
   }
 
   setMaxMessages(max: number): void {
