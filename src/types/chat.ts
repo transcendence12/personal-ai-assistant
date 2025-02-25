@@ -9,6 +9,7 @@ export const ChatConfigSchema = z.object({
   model: z.string(),
   temperature: z.number().min(0).max(2),
   maxMessages: z.number().positive(),
+  maxTokens: z.number().positive().default(500),
 });
 
 export type Message = z.infer<typeof MessageSchema>;

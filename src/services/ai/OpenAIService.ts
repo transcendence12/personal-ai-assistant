@@ -14,6 +14,7 @@ export class OpenAIService {
       model: 'gpt-4',
       temperature: 0.3,
       maxMessages: 3,
+      maxTokens: 500,
     });
 
     // Walidacja klucza API
@@ -61,6 +62,7 @@ export class OpenAIService {
         messages,
         model: this.config.model,
         temperature: this.config.temperature,
+        max_tokens: this.config.maxTokens,
       });
 
       const responseContent = completion.choices[0].message.content || '';
