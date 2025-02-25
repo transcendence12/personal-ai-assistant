@@ -41,7 +41,7 @@ export class MessageHistoryService {
   }
 
   getMessages(): Message[] {
-    return [...this.messages]; // Zwracamy kopię tablicy
+    return [...this.messages]; // Zwracamy kopię tablicy aby zapobiec modyfikacji oryginalnej tablicy z zewnątrz
   }
 
   clearHistory(): void {

@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { MessageHistoryService } from '../history/MessageHistoryService';
-import { ChatConfigSchema, Message } from '../../types/chat';
+import { ChatConfigSchema } from '../../types/chat';
 import { z } from 'zod';
 import { APIError } from 'openai';
 
