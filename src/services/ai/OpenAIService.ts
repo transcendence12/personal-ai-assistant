@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { MessageHistoryService } from '../history/MessageHistoryService';
 import { ChatConfigSchema, Message } from '../../types/chat';
 import { z } from 'zod';
+import { APIError } from 'openai';
 
 export class OpenAIService {
   private client: OpenAI;
@@ -41,6 +42,36 @@ export class OpenAIService {
    - Professional but friendly
    - Concise but informative`;
 
+  private handleOpenAIError(error: unknown): never {
+    if (error instanceof APIError) {
+      console.error('OpenAI API Error:', {
+        status: error.status,
+        message: error.message,
+        code: error.code,
+        type: error.type
+      });
+      
+      switch (error.status) {
+        case 401:
+          throw new Error('Nieprawidłowy klucz API OpenAI');
+        case 429:
+          throw new Error('Przekroczono limit zapytań do API');
+        case 500:
+          throw new Error('Błąd serwera OpenAI - spróbuj ponownie później');
+        default:
+          throw new Error(`Błąd API OpenAI: ${error.message}`);
+      }
+    }
+
+    if (error instanceof z.ZodError) {
+      console.error('Validation Error:', error.format());
+      throw new Error('Błąd walidacji danych');
+    }
+
+    console.error('Unexpected Error:', error);
+    throw new Error('Wystąpił nieoczekiwany błąd');
+  }
+
   async generateResponse(userMessage: string): Promise<string> {
     try {
       // Dodaj wiadomość użytkownika do historii
@@ -72,8 +103,7 @@ export class OpenAIService {
 
       return responseContent;
     } catch (error) {
-      console.error('OpenAI API error:', error);
-      throw error;
+      return this.handleOpenAIError(error);
     }
   }
 } 
