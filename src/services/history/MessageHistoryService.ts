@@ -20,7 +20,7 @@ export class MessageHistoryService {
       // System prompt zawsze na początku
       this.messages = [{ role, content }, ...this.messages.filter(m => m.role !== 'system')];
     } else {
-      // Dodaj nową wiadomość
+      // Dodaj nową wiadomość (zarówno user jak i assistant)
       this.messages.push({ role, content });
       
       // Zarządzanie limitem wiadomości
