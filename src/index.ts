@@ -1,18 +1,22 @@
 import { Bot, BotError, GrammyError, HttpError } from "grammy";
 import { BOT_CONFIG } from "./config/config";
-import { handleStart, handleHelp } from "./handlers/commands";
+import { CommandHandler } from "./handlers/commands";
 import { ChatHandler } from "./handlers/chat";
+import { OpenAIService } from "./services/ai/OpenAIService";
 
 async function startBot() {
   const bot = new Bot(BOT_CONFIG.token);
-  const chatHandler = ChatHandler.initialize();
+  const aiService = new OpenAIService();
+  const commandHandler = new CommandHandler(aiService);
+  const chatHandler = new ChatHandler(aiService);
 
-  bot.command("start", handleStart);
-  bot.command("help", handleHelp);
+  bot.command("start", (ctx) => commandHandler.handleStart(ctx));
+  bot.command("help", (ctx) => commandHandler.handleHelp(ctx));
+  bot.command("history", (ctx) => commandHandler.handleSetHistory(ctx));
+  bot.command("temp", (ctx) => commandHandler.handleSetTemperature(ctx));
+  bot.command("lang", (ctx) => commandHandler.handleSetLanguage(ctx));
 
-  bot.on("message:text", async (ctx) => {
-    await chatHandler.handleMessage(ctx);
-  });
+  bot.on("message:text", (ctx) => chatHandler.handleMessage(ctx));
 
   bot.catch((err) => {
     const ctx = err.ctx;

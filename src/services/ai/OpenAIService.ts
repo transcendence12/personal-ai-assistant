@@ -106,4 +106,23 @@ export class OpenAIService {
       return this.handleOpenAIError(error);
     }
   }
+
+  setTemperature(temp: number): void {
+    if (temp < 0 || temp > 2) {
+      throw new Error('Temperature must be between 0 and 2');
+    }
+    this.config.temperature = temp;
+  }
+
+  getHistory(): MessageHistoryService {
+    return this.history;
+  }
+
+  getConfig() {
+    return {
+      temperature: this.config.temperature,
+      model: this.config.model,
+      maxTokens: this.config.maxTokens
+    };
+  }
 } 

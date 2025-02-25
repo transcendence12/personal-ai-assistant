@@ -29,28 +29,50 @@ export const SERVER_CONFIG = {
 // Teksty dla różnych języków
 export const MESSAGES = {
     pl: {
-        start: "👋 Cześć! Jestem Twoim asystentem w świecie freelancingu i programowania. " +
-              "Pomogę Ci w rozwoju kariery, kodowaniu i biznesie. W czym mogę Ci pomóc?",
-        help: "🔍 Mogę Ci pomóc w:\n" +
+        start: "👋 Cześć! Jestem Harrym, Twoim asystentem w świecie freelancingu i programowania. " +
+              "Wpisz /help aby zobaczyć dostępne komendy.",
+        help: "🔍 Dostępne komendy:\n" +
+              "/help - wyświetla tę pomoc\n" +
+              "/history <liczba> - ustawia ilość zapamiętanych wiadomości (np. /history 5)\n" +
+              "/temp <0.0-2.0> - ustawia kreatywność odpowiedzi (np. /temp 0.7)\n" +
+              "/lang <pl|en> - zmienia język bota\n\n" +
+              "Mogę Ci pomóc w:\n" +
               "- Rozwoju kariery freelancera\n" +
               "- Pisaniu lepszego kodu\n" +
               "- Komunikacji z klientami\n" +
               "- Tworzeniu portfolio\n" +
               "- Szukaniu zleceń\n" +
-              "- Najlepszych praktykach programowania\n\n" +
-              "Po prostu napisz do mnie, a postaram się pomóc!"
+              "- Najlepszych praktykach programowania",
+        config: {
+            title: "Aktualna konfiguracja",
+            language: "Język",
+            history: "Historia",
+            temperature: "Temperatura",
+            messages: "wiadomości"
+        }
     },
     en: {
-        start: "👋 Hi! I'm your assistant in the world of freelancing and programming. " +
-              "I'll help you with career development, coding, and business. How can I help you?",
-        help: "🔍 I can help you with:\n" +
+        start: "👋 Hi! I'm Harry, your assistant in freelancing and programming. " +
+              "Type /help to see available commands.",
+        help: "🔍 Available commands:\n" +
+              "/help - shows this help\n" +
+              "/history <number> - sets number of remembered messages (e.g. /history 5)\n" +
+              "/temp <0.0-2.0> - sets response creativity (e.g. /temp 0.7)\n" +
+              "/lang <pl|en> - changes bot language\n\n" +
+              "I can help you with:\n" +
               "- Freelance career development\n" +
               "- Writing better code\n" +
               "- Client communication\n" +
               "- Portfolio building\n" +
               "- Finding projects\n" +
-              "- Software development best practices\n\n" +
-              "Just write to me and I'll try to help!"
+              "- Software development best practices",
+        config: {
+            title: "Current configuration",
+            language: "Language",
+            history: "History",
+            temperature: "Temperature",
+            messages: "messages"
+        }
     }
 };
 

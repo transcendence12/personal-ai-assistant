@@ -12,15 +12,7 @@ const MessageContextSchema = z.object({
 });
 
 export class ChatHandler {
-  private aiService: OpenAIService;
-
-  constructor() {
-    this.aiService = new OpenAIService();
-  }
-
-  static initialize(): ChatHandler {
-    return new ChatHandler();
-  }
+  constructor(private aiService: OpenAIService) {}
 
   async handleMessage(ctx: Context): Promise<void> {
     try {

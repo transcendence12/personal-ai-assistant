@@ -16,7 +16,6 @@ export class MessageHistoryService {
 
   setMaxMessages(maxMessages: number): void {
     this.config.maxMessages = maxMessages;
-    // Przytnij historię jeśli nowy limit jest mniejszy
     while (this.messages.length > maxMessages) {
       this.messages.shift();
     }
@@ -45,5 +44,9 @@ export class MessageHistoryService {
 
   clear(): void {
     this.messages = [];
+  }
+
+  getConfig(): HistoryConfig {
+    return { ...this.config };
   }
 } 
