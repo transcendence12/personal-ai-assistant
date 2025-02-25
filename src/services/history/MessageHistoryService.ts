@@ -1,4 +1,4 @@
-import { Message, MessageSchema } from '../../types/chat';
+import { Message } from '../../types/chat';
 
 interface HistoryConfig {
   maxMessages: number;
@@ -8,25 +8,22 @@ export class MessageHistoryService {
   private messages: Message[] = [];
   private config: HistoryConfig;
 
-  constructor(config?: Partial<HistoryConfig>) {
-    this.config = {
-      maxMessages: config?.maxMessages || 3,
-    };
+  constructor(config: HistoryConfig) {
+    this.config = config;
   }
 
-  setMaxMessages(maxMessages: number): void {
-    this.config.maxMessages = maxMessages;
-    while (this.messages.length > maxMessages) {
-      this.messages.shift();
-    }
-  }
-
-  addMessage(role: Message['role'], content: string): void {
-    const message = MessageSchema.parse({ role, content });
-    this.messages.push(message);
-    
-    if (this.messages.length > this.config.maxMessages) {
-      this.messages.shift();
+  addMessage(role: 'user' | 'assistant' | 'system', content: string): void {
+    if (role === 'system') {
+      // System prompt zawsze na początku
+      this.messages = [{ role, content }, ...this.messages.filter(m => m.role !== 'system')];
+    } else {
+      this.messages.push({ role, content });
+      // Zachowaj tylko N ostatnich wiadomości (nie licząc system prompt)
+      const nonSystem = this.messages.filter(m => m.role !== 'system');
+      if (nonSystem.length > this.config.maxMessages) {
+        const system = this.messages.find(m => m.role === 'system');
+        this.messages = system ? [system, ...nonSystem.slice(-this.config.maxMessages)] : nonSystem.slice(-this.config.maxMessages);
+      }
     }
   }
 
@@ -34,19 +31,30 @@ export class MessageHistoryService {
     return this.messages;
   }
 
+  clearHistory(): void {
+    this.messages = this.messages.filter(m => m.role === 'system');
+  }
+
+  setMaxMessages(max: number): void {
+    this.config.maxMessages = max;
+    // Trim history if needed after changing max
+    const systemMessages = this.messages.filter(m => m.role === 'system');
+    const nonSystemMessages = this.messages.filter(m => m.role !== 'system');
+    this.messages = [
+      ...systemMessages,
+      ...nonSystemMessages.slice(-max)
+    ];
+  }
+
+  getConfig() {
+    return {
+      maxMessages: this.config.maxMessages
+    };
+  }
+
   summarizeConversation(): string {
-    if (this.messages.length === 0) return '';
-    
     return this.messages
-      .map(msg => `${msg.role}: ${msg.content}`)
+      .map(m => `${m.role}: ${m.content.substring(0, 50)}...`)
       .join('\n');
-  }
-
-  clear(): void {
-    this.messages = [];
-  }
-
-  getConfig(): HistoryConfig {
-    return { ...this.config };
   }
 } 
