@@ -18,6 +18,7 @@ export class OpenAIService {
    - Portfolio development
    - Finding projects in the Polish market
    - Best practices in software development
+   - Image analysis
 
 4. Keep responses:
    - Practical and actionable
@@ -113,5 +114,37 @@ export class OpenAIService {
       model: this.config.model,
       maxTokens: this.config.maxTokens
     };
+  }
+
+  async analyzeImage(fileUrl: string, caption?: string): Promise<string> {
+    try {
+      const messages = [
+        { role: 'system' as const, content: this.SYSTEM_PROMPT },
+        { 
+          role: 'user' as const, 
+          content: [
+            {
+              type: 'image_url' as const,
+              image_url: { url: fileUrl }
+            },
+            {
+              type: 'text' as const,
+              text: caption || 'Describe this image in detail, focusing on the most important elements.'
+            }
+          ]
+        }
+      ];
+
+      const completion = await this.client.chat.completions.create({
+        model: 'gpt-4-turbo-2024-04-09',
+        messages,
+        max_tokens: this.config.maxTokens,
+      });
+
+      const response = completion.choices[0].message.content || '';
+      return response;
+    } catch (error) {
+      return this.handleOpenAIError(error);
+    }
   }
 } 

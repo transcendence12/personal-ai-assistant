@@ -12,5 +12,21 @@ export const ChatConfigSchema = z.object({
   maxTokens: z.number().min(1),
 });
 
+export const ImageMessageSchema = z.object({
+  message: z.object({
+    photo: z.array(z.object({
+      file_id: z.string(),
+      file_unique_id: z.string(),
+      width: z.number(),
+      height: z.number(),
+      file_size: z.number().optional(),
+    })).optional(),
+    caption: z.string().optional(),
+  }),
+  chat: z.object({
+    id: z.number(),
+  }),
+});
+
 export type Message = z.infer<typeof MessageSchema>;
 export type ChatConfig = z.infer<typeof ChatConfigSchema>; 
