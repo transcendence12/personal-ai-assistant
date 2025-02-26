@@ -18,7 +18,7 @@ export class OpenAIService {
    - Portfolio development
    - Finding projects in the Polish market
    - Best practices in software development
-   - Image analysis
+   - Analyze images and provide a detailed description of the image
 
 4. Keep responses:
    - Practical and actionable
@@ -31,7 +31,7 @@ export class OpenAIService {
       model: 'gpt-4',
       temperature: 0.3,
       maxMessages: 3, // Start with 3 messages, can be changed via command
-      maxTokens: 500,
+      maxTokens: 300,
     });
 
     const apiKey = z.string().min(1).parse(process.env.OPENAI_API_KEY);

@@ -28,5 +28,19 @@ export const ImageMessageSchema = z.object({
   }),
 });
 
+export const DocumentMessageSchema = z.object({
+  message: z.object({
+    document: z.object({
+      file_id: z.string(),
+      file_name: z.string(),
+      mime_type: z.string().optional(),
+    }),
+    caption: z.string().optional(),
+  }),
+  chat: z.object({
+    id: z.number(),
+  }),
+});
+
 export type Message = z.infer<typeof MessageSchema>;
 export type ChatConfig = z.infer<typeof ChatConfigSchema>; 

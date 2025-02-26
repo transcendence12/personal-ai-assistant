@@ -18,6 +18,7 @@ async function startBot() {
 
   bot.on("message:text", (ctx) => chatHandler.handleMessage(ctx));
   bot.on("message:photo", (ctx) => chatHandler.handleImageMessage(ctx));
+  bot.on("message:document", (ctx) => chatHandler.handleDocumentMessage(ctx));
 
   bot.catch((err) => {
     const ctx = err.ctx;
