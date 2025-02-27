@@ -1,50 +1,16 @@
 import { Context } from "grammy";
 import { OpenAIService } from "../services/ai/OpenAIService";
-import { z } from "zod";
+import { 
+  DocumentMessageSchema, 
+  ImageMessageSchema, 
+  VoiceMessageSchema,
+  TextMessageSchema 
+} from "../types/chat";
 import { BOT_CONFIG } from "../config/config";
 
-const MessageContextSchema = z.object({
-  message: z.object({
-    text: z.string(),
-  }),
-  chat: z.object({
-    id: z.number(),
-  }),
-});
-
-const ImageMessageSchema = z.object({
-  message: z.object({
-    photo: z.array(z.object({
-      file_id: z.string(),
-      file_unique_id: z.string(),
-      width: z.number(),
-      height: z.number(),
-      file_size: z.number().optional(),
-    })).optional(),
-    caption: z.string().optional(),
-  }),
-  chat: z.object({
-    id: z.number(),
-  }),
-});
-
-// List of allowed image formats
+// Constants
 const ALLOWED_IMAGE_FORMATS = ['jpg', 'jpeg', 'png', 'webp'];
-
-// Add document schema
-export const DocumentMessageSchema = z.object({
-  message: z.object({
-    document: z.object({
-      file_id: z.string(),
-      file_name: z.string(),
-      mime_type: z.string().optional(),
-    }),
-    caption: z.string().optional(),
-  }),
-  chat: z.object({
-    id: z.number(),
-  }),
-});
+const MAX_VOICE_SIZE = 25 * 1024 * 1024; // 25MB - Whisper's limit
 
 export class ChatHandler {
   constructor(private aiService: OpenAIService) {}
@@ -52,7 +18,7 @@ export class ChatHandler {
   async handleMessage(ctx: Context): Promise<void> {
     try {
       // Walidacja kontekstu wiadomości
-      const validatedCtx = MessageContextSchema.safeParse(ctx);
+      const validatedCtx = TextMessageSchema.safeParse(ctx);
       
       if (!validatedCtx.success) {
         console.error('Validation error:', validatedCtx.error.format());
@@ -190,6 +156,90 @@ export class ChatHandler {
         await ctx.reply(BOT_CONFIG.language === 'pl' 
           ? "Przepraszam, wystąpił błąd podczas przetwarzania pliku. Spróbuj wysłać jako zdjęcie."
           : "Sorry, there was an error processing the file. Try sending it as a photo.");
+      }
+    }
+  }
+
+  async handleVoiceMessage(ctx: Context): Promise<void> {
+    try {
+      const validatedCtx = VoiceMessageSchema.safeParse(ctx);
+      
+      if (!validatedCtx.success || !validatedCtx.data.message.voice) {
+        console.error('Voice message validation failed:', validatedCtx.error?.format());
+        return;
+      }
+
+      const { message: { voice }, chat: { id: chatId } } = validatedCtx.data;
+
+      // Check file size (25MB limit for Whisper API)
+      if (voice.file_size && voice.file_size > MAX_VOICE_SIZE) {
+        await ctx.reply(BOT_CONFIG.language === 'pl'
+          ? "Przepraszam, ale plik głosowy jest zbyt duży. Maksymalny rozmiar to 25MB."
+          : "Sorry, but the voice file is too large. Maximum size is 25MB.");
+        return;
+      }
+
+      // Initial status message
+      const statusMessage = await ctx.reply(BOT_CONFIG.language === 'pl'
+        ? "🎤 Przetwarzam wiadomość głosową...\n⏳ Pobieranie pliku..."
+        : "🎤 Processing voice message...\n⏳ Downloading file...");
+
+      const fileInfo = await ctx.api.getFile(voice.file_id);
+      if (!fileInfo.file_path) {
+        throw new Error('Could not get file path');
+      }
+
+      const fullFileUrl = `https://api.telegram.org/file/bot${BOT_CONFIG.token}/${fileInfo.file_path}`;
+
+      // Update status - converting
+      await ctx.api.editMessageText(
+        chatId,
+        statusMessage.message_id,
+        BOT_CONFIG.language === 'pl'
+          ? "🎤 Przetwarzam wiadomość głosową...\n✅ Plik pobrany\n⏳ Konwertuję audio..."
+          : "🎤 Processing voice message...\n✅ File downloaded\n⏳ Converting audio..."
+      );
+
+      // Get transcription with progress updates
+      const { text: transcription, language: detectedLanguage } = await this.aiService.transcribeAudio(
+        fullFileUrl, 
+        async (status) => {
+          await ctx.api.editMessageText(
+            chatId,
+            statusMessage.message_id,
+            BOT_CONFIG.language === 'pl'
+              ? `🎤 Przetwarzam wiadomość głosową...\n✅ Plik pobrany\n✅ Audio przekonwertowane\n⏳ ${status}`
+              : `🎤 Processing voice message...\n✅ File downloaded\n✅ Audio converted\n⏳ ${status}`
+          );
+        }
+      );
+
+      // Update status - generating response
+      await ctx.api.editMessageText(
+        chatId,
+        statusMessage.message_id,
+        detectedLanguage === 'pl'
+          ? "🎤 Przetwarzam wiadomość głosową...\n✅ Plik pobrany\n✅ Audio przekonwertowane\n✅ Transkrypcja gotowa\n⏳ Generuję odpowiedź..."
+          : "🎤 Processing voice message...\n✅ File downloaded\n✅ Audio converted\n✅ Transcription ready\n⏳ Generating response..."
+      );
+      
+      // Generate response based on transcription and detected language
+      const response = await this.aiService.generateResponse(transcription, detectedLanguage);
+      
+      // Delete status message and send final response
+      await ctx.api.deleteMessage(chatId, statusMessage.message_id);
+      
+      // Send both transcription and response in detected language
+      await ctx.reply(detectedLanguage === 'pl'
+        ? `🎤 Transkrypcja: ${transcription}\n\n🤖 Odpowiedź: ${response}`
+        : `🎤 Transcription: ${transcription}\n\n🤖 Response: ${response}`);
+
+    } catch (error) {
+      console.error('Voice Handler Error:', error);
+      if (ctx.chat?.id) {
+        await ctx.reply(BOT_CONFIG.language === 'pl'
+          ? "Przepraszam, wystąpił błąd podczas przetwarzania wiadomości głosowej."
+          : "Sorry, there was an error processing the voice message.");
       }
     }
   }

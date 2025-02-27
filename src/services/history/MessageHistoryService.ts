@@ -71,4 +71,8 @@ export class MessageHistoryService {
       .map(m => `${m.role}: ${m.content.substring(0, 50)}...`)
       .join('\n');
   }
+
+  removeMessage(content: string): void {
+    this.messages = this.messages.filter(m => m.content !== content);
+  }
 } 
