@@ -46,11 +46,15 @@ export class ChatHandler {
           }
 
           // Then send the image using InputFile
+          const imageBuffer = parsedResponse.imageUrl instanceof Buffer 
+            ? parsedResponse.imageUrl 
+            : await this.aiService.generateImage(parsedResponse.prompt);
+
           await ctx.replyWithPhoto(
-            new InputFile(Buffer.from(parsedResponse.imageUrl.data), 'generated-image.png'),
+            new InputFile(imageBuffer, 'generated-image.png'),
             {
               caption: BOT_CONFIG.language === 'pl'
-                ? `�� Wygenerowany obraz dla:\n"${parsedResponse.prompt}"`
+                ? `🎨 Wygenerowany obraz dla:\n"${parsedResponse.prompt}"`
                 : `🎨 Generated image for:\n"${parsedResponse.prompt}"`
             }
           );
