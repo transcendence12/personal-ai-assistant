@@ -18,7 +18,6 @@ export class OpenAIService {
   private client: OpenAI;
   private history: MessageHistoryService;
   private config;
-  private detectedAudioLanguage?: string;
   private readonly SYSTEM_PROMPT = `You are an AI assistant named Harry. You must always:
 1. Remember that YOU are Harry - an experienced freelance mentor. Never say you are just an AI without a name.
 2. Keep your identity consistent - always introduce yourself as Harry
@@ -32,18 +31,22 @@ export class OpenAIService {
    - Analyze images and provide a detailed description of the image
 
 4. You can also:
+   - Generate images using DALL-E when users request visualizations
    - Process voice messages and respond to spoken questions
-   - Understand both Polish and English voice messages (up to 25MB in size)
-   - Provide accurate transcriptions of voice messages
-   - Help users understand when their voice messages are too long or unclear
-   - Maintain context between voice and text messages in the same conversation
+   - Understand both Polish and English
+   - Maintain context between messages
 
-5. Keep responses:
+5. When to generate images:
+   - When users explicitly ask for images or visualizations
+   - When a visual explanation would be more helpful
+   - When users use phrases like "show me", "draw", "generate", "create image"
+   - When explaining visual concepts or designs
+
+6. Keep responses:
    - Practical and actionable
-   - Focused on the Polish freelance market when relevant
    - Professional but friendly
    - Concise but informative
-   - Consistent whether responding to text or voice messages`;
+   - Include image generation when appropriate`;
 
   constructor() {
     ffmpeg.setFfmpegPath(ffmpegPath.path);
@@ -117,43 +120,58 @@ export class OpenAIService {
     try {
       const messageLanguage = detectedLanguage || BOT_CONFIG.language;
       
-      // Add language instruction to system message
-      const languageInstruction = messageLanguage === 'pl' 
-        ? "Musisz odpowiadać wyłącznie po polsku na wszystkie wiadomości." 
-        : "You must respond only in English to all messages.";
-      
-      // Add temporary language instruction at the beginning
-      const systemMessages = this.history.getMessages().filter(m => m.role === 'system');
-      const updatedSystemPrompt = `${this.SYSTEM_PROMPT}\n\n${languageInstruction}`;
-      
-      // Update system messages with language instruction
-      systemMessages.forEach(msg => {
-        this.history.removeMessage(msg.content);
-      });
-      this.history.addMessage('system', updatedSystemPrompt);
-      
-      // Add user message
       this.history.addMessage('user', userMessage);
       
-      const messages = this.history.getMessages();
-      
+      const tools = [
+        {
+          type: "function" as const,
+          function: {
+            name: "generate_image",
+            description: "Generate an image using DALL-E when user wants to see a visual representation or explicitly asks for an image",
+            parameters: {
+              type: "object",
+              properties: {
+                prompt: {
+                  type: "string",
+                  description: "Detailed description of the image to generate, should be clear and specific"
+                }
+              },
+              required: ["prompt"]
+            }
+          }
+        }
+      ];
+
       const completion = await this.client.chat.completions.create({
-        messages,
-        model: this.config.model,
+        messages: this.history.getMessages(),
+        model: "gpt-4-turbo-preview", // Updated to latest model that better supports tool calls
         temperature: this.config.temperature,
-        max_tokens: this.config.maxTokens,
+        tools,
+        tool_choice: "auto"
       });
 
-      const responseContent = completion.choices[0].message.content || '';
-      this.history.addMessage('assistant', responseContent);
+      const response = completion.choices[0].message;
       
-      // Restore original system prompt
-      systemMessages.forEach(msg => {
-        this.history.removeMessage(msg.content);
-      });
-      this.history.addMessage('system', this.SYSTEM_PROMPT);
-      
-      return responseContent;
+      // Check if there are any tool calls
+      if (response.tool_calls && response.tool_calls.length > 0) {
+        const toolCall = response.tool_calls[0];
+        
+        if (toolCall.function.name === "generate_image") {
+          const { prompt } = JSON.parse(toolCall.function.arguments);
+          const imageUrl = await this.generateImage(prompt);
+          
+          this.history.addMessage('assistant', response.content || '');
+          
+          return JSON.stringify({
+            text: response.content,
+            imageUrl,
+            prompt
+          });
+        }
+      }
+
+      this.history.addMessage('assistant', response.content || '');
+      return response.content || '';
     } catch (error) {
       return this.handleOpenAIError(error);
     }
@@ -326,6 +344,50 @@ export class OpenAIService {
       };
     } catch (error) {
       console.error('Transcription Error:', error);
+      throw this.handleOpenAIError(error);
+    }
+  }
+
+  async generateImage(prompt: string): Promise<Buffer> {
+    try {
+      // Generowanie obrazu
+      const response = await this.client.images.generate({
+        model: "dall-e-3",
+        prompt: prompt,
+        n: 1,
+        size: "1024x1024",
+        quality: "standard",
+        response_format: "url",
+      });
+
+      if (!response.data[0]?.url) {
+        throw new Error('No image URL in response');
+      }
+
+      // Pobieranie obrazu z URL
+      const maxRetries = 3;
+      let lastError: Error | null = null;
+
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          const imageResponse = await axios.get(response.data[0].url, {
+            responseType: 'arraybuffer',
+            timeout: 10000, // 10 sekund timeout
+          });
+          
+          return Buffer.from(imageResponse.data);
+        } catch (error) {
+          console.error(`Attempt ${i + 1} failed:`, error);
+          lastError = error as Error;
+          if (i < maxRetries - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff
+          }
+        }
+      }
+
+      throw lastError || new Error('Failed to download image');
+    } catch (error) {
+      console.error('Image Generation Error:', error);
       throw this.handleOpenAIError(error);
     }
   }

@@ -21,6 +21,10 @@ async function startBot() {
   bot.on("message:document", (ctx) => chatHandler.handleDocumentMessage(ctx));
   bot.on("message:voice", (ctx) => chatHandler.handleVoiceMessage(ctx));
 
+  // Add image generation commands
+  bot.command("generate", (ctx) => chatHandler.handleImageGeneration(ctx));
+  bot.command("img", (ctx) => chatHandler.handleImageGeneration(ctx));
+
   bot.catch((err) => {
     const ctx = err.ctx;
     console.error(`Error while handling update ${ctx.update.update_id}:`);
