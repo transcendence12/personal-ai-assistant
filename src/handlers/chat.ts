@@ -179,10 +179,11 @@ export class ChatHandler {
         return;
       }
 
-      // Show typing indicator
-      await ctx.api.sendChatAction(chatId, "typing");
+      // Initial status message
+      const statusMessage = await ctx.reply(BOT_CONFIG.language === 'pl'
+        ? "🎤 Przetwarzam wiadomość głosową...\n⏳ Pobieranie pliku..."
+        : "🎤 Processing voice message...\n⏳ Downloading file...");
 
-      // Get file info and construct URL
       const fileInfo = await ctx.api.getFile(voice.file_id);
       if (!fileInfo.file_path) {
         throw new Error('Could not get file path');
@@ -190,22 +191,46 @@ export class ChatHandler {
 
       const fullFileUrl = `https://api.telegram.org/file/bot${BOT_CONFIG.token}/${fileInfo.file_path}`;
 
-      // Log voice message details
-      console.log('Processing voice message:', {
-        duration: voice.duration,
-        fileSize: voice.file_size,
-        mimeType: voice.mime_type,
-        filePath: fileInfo.file_path
-      });
+      // Update status - converting
+      await ctx.api.editMessageText(
+        chatId,
+        statusMessage.message_id,
+        BOT_CONFIG.language === 'pl'
+          ? "🎤 Przetwarzam wiadomość głosową...\n✅ Plik pobrany\n⏳ Konwertuję audio..."
+          : "🎤 Processing voice message...\n✅ File downloaded\n⏳ Converting audio..."
+      );
 
-      // Get transcription
-      const transcription = await this.aiService.transcribeAudio(fullFileUrl);
+      // Get transcription with progress updates
+      const { text: transcription, language: detectedLanguage } = await this.aiService.transcribeAudio(
+        fullFileUrl, 
+        async (status) => {
+          await ctx.api.editMessageText(
+            chatId,
+            statusMessage.message_id,
+            BOT_CONFIG.language === 'pl'
+              ? `🎤 Przetwarzam wiadomość głosową...\n✅ Plik pobrany\n✅ Audio przekonwertowane\n⏳ ${status}`
+              : `🎤 Processing voice message...\n✅ File downloaded\n✅ Audio converted\n⏳ ${status}`
+          );
+        }
+      );
+
+      // Update status - generating response
+      await ctx.api.editMessageText(
+        chatId,
+        statusMessage.message_id,
+        detectedLanguage === 'pl'
+          ? "🎤 Przetwarzam wiadomość głosową...\n✅ Plik pobrany\n✅ Audio przekonwertowane\n✅ Transkrypcja gotowa\n⏳ Generuję odpowiedź..."
+          : "🎤 Processing voice message...\n✅ File downloaded\n✅ Audio converted\n✅ Transcription ready\n⏳ Generating response..."
+      );
       
-      // Generate response based on transcription
-      const response = await this.aiService.generateResponse(transcription);
+      // Generate response based on transcription and detected language
+      const response = await this.aiService.generateResponse(transcription, detectedLanguage);
       
-      // Send both transcription and response
-      await ctx.reply(BOT_CONFIG.language === 'pl'
+      // Delete status message and send final response
+      await ctx.api.deleteMessage(chatId, statusMessage.message_id);
+      
+      // Send both transcription and response in detected language
+      await ctx.reply(detectedLanguage === 'pl'
         ? `🎤 Transkrypcja: ${transcription}\n\n🤖 Odpowiedź: ${response}`
         : `🎤 Transcription: ${transcription}\n\n🤖 Response: ${response}`);
 
