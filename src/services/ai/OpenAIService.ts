@@ -3,6 +3,7 @@ import { MessageHistoryService } from '../history/MessageHistoryService';
 import { ChatConfigSchema } from '../../types/chat';
 import { z } from 'zod';
 import { APIError } from 'openai';
+import { BOT_CONFIG } from '../../config/config';
 
 export class OpenAIService {
   private client: OpenAI;
@@ -20,11 +21,19 @@ export class OpenAIService {
    - Best practices in software development
    - Analyze images and provide a detailed description of the image
 
-4. Keep responses:
+4. You can also:
+   - Process voice messages and respond to spoken questions
+   - Understand both Polish and English voice messages (up to 25MB in size)
+   - Provide accurate transcriptions of voice messages
+   - Help users understand when their voice messages are too long or unclear
+   - Maintain context between voice and text messages in the same conversation
+
+5. Keep responses:
    - Practical and actionable
    - Focused on the Polish freelance market when relevant
    - Professional but friendly
-   - Concise but informative`;
+   - Concise but informative
+   - Consistent whether responding to text or voice messages`;
 
   constructor() {
     const config = ChatConfigSchema.parse({
@@ -144,6 +153,52 @@ export class OpenAIService {
       const response = completion.choices[0].message.content || '';
       return response;
     } catch (error) {
+      return this.handleOpenAIError(error);
+    }
+  }
+
+  async transcribeAudio(fileUrl: string): Promise<string> {
+    try {
+      // Download the file
+      const response = await fetch(fileUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch audio file: ${response.statusText}`);
+      }
+      
+      const audioData = await response.blob();
+      console.log('Audio file details:', {
+        size: audioData.size,
+        type: audioData.type,
+      });
+
+      // Create a File object that OpenAI can handle
+      const audioFile = new File(
+        [audioData], 
+        'audio.ogg',  // Telegram's native format
+        { type: 'audio/ogg' }
+      );
+
+      // Send to Whisper API with improved error handling
+      try {
+        const transcription = await this.client.audio.transcriptions.create({
+          file: audioFile,
+          model: "whisper-1",
+          language: BOT_CONFIG.language === 'pl' ? 'pl' : 'en',
+          response_format: 'text',
+          temperature: 0.2,
+        });
+
+        return transcription;
+      } catch (error) {
+        if (error instanceof APIError && error.status === 413) {
+          throw new Error(BOT_CONFIG.language === 'pl' 
+            ? 'Plik audio jest zbyt duży. Maksymalny rozmiar to 25MB.'
+            : 'Audio file is too large. Maximum size is 25MB.');
+        }
+        throw error;
+      }
+    } catch (error) {
+      console.error('Transcription Error:', error);
       return this.handleOpenAIError(error);
     }
   }

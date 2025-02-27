@@ -1,5 +1,6 @@
 {
   "devDependencies": {
+    "@types/node": "^22.13.5",
     "nodemon": "^3.1.9",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.3"
@@ -18,9 +19,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "openai": "^4.28.0",
-    "grammy": "^1.35.0",
     "dotenv": "^16.4.7",
+    "grammy": "^1.35.0",
+    "openai": "^4.28.0",
     "zod": "^3.22.4"
   }
 }
