@@ -17,6 +17,8 @@ async function startBot() {
   bot.command("lang", (ctx) => commandHandler.handleSetLanguage(ctx));
 
   bot.on("message:text", (ctx) => chatHandler.handleMessage(ctx));
+  bot.on("message:photo", (ctx) => chatHandler.handleImageMessage(ctx));
+  bot.on("message:document", (ctx) => chatHandler.handleDocumentMessage(ctx));
 
   bot.catch((err) => {
     const ctx = err.ctx;
