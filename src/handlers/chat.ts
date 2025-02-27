@@ -153,35 +153,37 @@ export class ChatHandler {
     }
   }
 
-  // Add document handler
+  // Update document handler
   async handleDocumentMessage(ctx: Context): Promise<void> {
     try {
       const validatedCtx = DocumentMessageSchema.safeParse(ctx);
       
       if (!validatedCtx.success || !validatedCtx.data.message.document) {
-        return; // Silently ignore non-document messages
+        return;
       }
 
       const { message: { document, caption }, chat: { id: chatId } } = validatedCtx.data;
       
-      // Check if document is an image by mime type or file extension
+      // Check if document is an image
       const isImage = document.mime_type?.startsWith('image/') || 
                      ALLOWED_IMAGE_FORMATS.some(format => 
                        document.file_name.toLowerCase().endsWith(`.${format}`)
                      );
 
-      if (!isImage) {
-        return; // Silently ignore non-image documents
+      if (isImage) {
+        await ctx.api.sendChatAction(chatId, "typing");
+        const fileInfo = await ctx.api.getFile(document.file_id);
+        const fullFileUrl = `https://api.telegram.org/file/bot${BOT_CONFIG.token}/${fileInfo.file_path}`;
+
+        const analysis = await this.aiService.analyzeImage(fullFileUrl, caption);
+        await ctx.reply(analysis);
+      } else {
+        // Inform user that only images are supported
+        await ctx.reply(BOT_CONFIG.language === 'pl'
+          ? `Przepraszam, ale obsługuję tylko pliki graficzne w formatach: ${ALLOWED_IMAGE_FORMATS.join(', ')}`
+          : `Sorry, I only support image files in formats: ${ALLOWED_IMAGE_FORMATS.join(', ')}`
+        );
       }
-
-      await ctx.api.sendChatAction(chatId, "typing");
-
-      const fileInfo = await ctx.api.getFile(document.file_id);
-      const fullFileUrl = `https://api.telegram.org/file/bot${BOT_CONFIG.token}/${fileInfo.file_path}`;
-
-      const analysis = await this.aiService.analyzeImage(fullFileUrl, caption);
-      await ctx.reply(analysis);
-
     } catch (error) {
       console.error('Document Handler Error:', error);
       if (ctx.chat?.id) {
