@@ -7,6 +7,7 @@ import {
   TextMessageSchema 
 } from "../types/chat";
 import { BOT_CONFIG } from "../config/config";
+import { InputFile } from "grammy";
 
 // Constants
 const ALLOWED_IMAGE_FORMATS = ['jpg', 'jpeg', 'png', 'webp'];
@@ -17,7 +18,6 @@ export class ChatHandler {
 
   async handleMessage(ctx: Context): Promise<void> {
     try {
-      // Walidacja kontekstu wiadomości
       const validatedCtx = TextMessageSchema.safeParse(ctx);
       
       if (!validatedCtx.success) {
@@ -29,11 +29,50 @@ export class ChatHandler {
 
       await ctx.api.sendChatAction(chatId, "typing");
       const response = await this.aiService.generateResponse(text);
-      await ctx.reply(response);
+
+      try {
+        // Check if response contains image generation
+        const parsedResponse = JSON.parse(response);
+        
+        if (parsedResponse.imageUrl) {
+          // Send status message
+          const statusMessage = await ctx.reply(BOT_CONFIG.language === 'pl'
+            ? "🎨 Generuję obraz...\n⏳ To może potrwać kilka sekund..."
+            : "🎨 Generating image...\n⏳ This may take a few seconds...");
+
+          // First send the text response if exists
+          if (parsedResponse.text) {
+            await ctx.reply(parsedResponse.text);
+          }
+
+          // Then send the image using InputFile
+          await ctx.replyWithPhoto(
+            new InputFile(Buffer.from(parsedResponse.imageUrl.data), 'generated-image.png'),
+            {
+              caption: BOT_CONFIG.language === 'pl'
+                ? `�� Wygenerowany obraz dla:\n"${parsedResponse.prompt}"`
+                : `🎨 Generated image for:\n"${parsedResponse.prompt}"`
+            }
+          );
+
+          // Delete status message
+          await ctx.api.deleteMessage(chatId, statusMessage.message_id);
+          return;
+        }
+        
+        // If we got here, it means the response was JSON but not an image
+        await ctx.reply(parsedResponse.text || response);
+        
+      } catch (e) {
+        // If response is not JSON, it's just a text response
+        await ctx.reply(response);
+      }
     } catch (error) {
       console.error('Error in handleMessage:', error);
       if (ctx.chat?.id) {
-        await ctx.reply("Przepraszam, wystąpił błąd podczas przetwarzania twojej wiadomości.");
+        await ctx.reply(BOT_CONFIG.language === 'pl'
+          ? "Przepraszam, wystąpił błąd podczas przetwarzania wiadomości. Spróbuj ponownie."
+          : "Sorry, there was an error processing your message. Please try again.");
       }
     }
   }
@@ -241,6 +280,50 @@ export class ChatHandler {
           ? "Przepraszam, wystąpił błąd podczas przetwarzania wiadomości głosowej."
           : "Sorry, there was an error processing the voice message.");
       }
+    }
+  }
+
+  async handleImageGeneration(ctx: Context): Promise<void> {
+    try {
+      const validatedCtx = TextMessageSchema.safeParse(ctx);
+      
+      if (!validatedCtx.success) {
+        throw new Error('Invalid message context');
+      }
+
+      const { message: { text }, chat: { id: chatId } } = validatedCtx.data;
+      const prompt = text.replace(/^\/(?:generate|img)\s+/, '').trim();
+
+      if (!prompt) {
+        await ctx.reply(BOT_CONFIG.language === 'pl'
+          ? "Proszę podaj opis obrazu, który chcesz wygenerować."
+          : "Please provide a description of the image you want to generate.");
+        return;
+      }
+
+      const statusMessage = await ctx.reply(BOT_CONFIG.language === 'pl'
+        ? "🎨 Generuję obraz...\n⏳ To może potrwać kilka sekund..."
+        : "🎨 Generating image...\n⏳ This may take a few seconds...");
+
+      const imageBuffer = await this.aiService.generateImage(prompt);
+
+      // Poprawione wysyłanie obrazu
+      await ctx.replyWithPhoto(
+        new InputFile(imageBuffer, 'generated-image.png'),
+        {
+          caption: BOT_CONFIG.language === 'pl'
+            ? `🎨 Wygenerowany obraz dla:\n"${prompt}"`
+            : `🎨 Generated image for:\n"${prompt}"`
+        }
+      );
+
+      await ctx.api.deleteMessage(chatId, statusMessage.message_id);
+
+    } catch (error) {
+      console.error('Image Generation Error:', error);
+      await ctx.reply(BOT_CONFIG.language === 'pl'
+        ? "Przepraszam, wystąpił błąd podczas generowania obrazu. Spróbuj ponownie z innym opisem."
+        : "Sorry, there was an error generating the image. Please try again with a different description.");
     }
   }
 } 
