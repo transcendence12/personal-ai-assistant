@@ -292,42 +292,62 @@ export class ChatHandler {
       const validatedCtx = TextMessageSchema.safeParse(ctx);
       
       if (!validatedCtx.success) {
-        throw new Error('Invalid message context');
+        console.error('Validation error:', validatedCtx.error.format());
+        throw new Error('Invalid command context');
       }
 
       const { message: { text }, chat: { id: chatId } } = validatedCtx.data;
-      const prompt = text.replace(/^\/(?:generate|img)\s+/, '').trim();
-
-      if (!prompt) {
+      
+      // Extract prompt from command
+      const prompt = text.split(/\/(?:generate|img)\s+/)[1];
+      
+      if (!prompt || prompt.trim().length === 0) {
         await ctx.reply(BOT_CONFIG.language === 'pl'
-          ? "Proszę podaj opis obrazu, który chcesz wygenerować."
-          : "Please provide a description of the image you want to generate.");
+          ? "Proszę podać opis obrazu do wygenerowania (np. /generate zachód słońca nad morzem)"
+          : "Please provide an image description (e.g. /generate sunset over the ocean)");
         return;
       }
 
+      // Send status message
       const statusMessage = await ctx.reply(BOT_CONFIG.language === 'pl'
         ? "🎨 Generuję obraz...\n⏳ To może potrwać kilka sekund..."
         : "🎨 Generating image...\n⏳ This may take a few seconds...");
 
-      const imageBuffer = await this.aiService.generateImage(prompt);
+      try {
+        // Generate image
+        const imageBuffer = await this.aiService.generateImage(prompt);
 
-      // Poprawione wysyłanie obrazu
-      await ctx.replyWithPhoto(
-        new InputFile(imageBuffer, 'generated-image.png'),
-        {
-          caption: BOT_CONFIG.language === 'pl'
-            ? `🎨 Wygenerowany obraz dla:\n"${prompt}"`
-            : `🎨 Generated image for:\n"${prompt}"`
-        }
-      );
+        // Send the image
+        await ctx.replyWithPhoto(
+          new InputFile(imageBuffer, 'generated-image.png'),
+          {
+            caption: BOT_CONFIG.language === 'pl'
+              ? `🎨 Wygenerowany obraz dla:\n"${prompt}"`
+              : `🎨 Generated image for:\n"${prompt}"`
+          }
+        );
 
-      await ctx.api.deleteMessage(chatId, statusMessage.message_id);
-
+        // Delete status message
+        await ctx.api.deleteMessage(chatId, statusMessage.message_id);
+      } catch (error) {
+        console.error('Image Generation Error:', error);
+        
+        // Update status message with error
+        await ctx.api.editMessageText(
+          chatId,
+          statusMessage.message_id,
+          BOT_CONFIG.language === 'pl'
+            ? "❌ Przepraszam, wystąpił błąd podczas generowania obrazu. Spróbuj ponownie z innym opisem."
+            : "❌ Sorry, there was an error generating the image. Please try again with a different description."
+        );
+      }
     } catch (error) {
-      console.error('Image Generation Error:', error);
-      await ctx.reply(BOT_CONFIG.language === 'pl'
-        ? "Przepraszam, wystąpił błąd podczas generowania obrazu. Spróbuj ponownie z innym opisem."
-        : "Sorry, there was an error generating the image. Please try again with a different description.");
+      console.error('Handler Error:', error);
+      if (ctx.chat?.id) {
+        await ctx.reply(BOT_CONFIG.language === 'pl'
+          ? "Przepraszam, wystąpił błąd podczas przetwarzania komendy. Spróbuj ponownie."
+          : "Sorry, there was an error processing your command. Please try again.");
+      }
     }
   }
 } 

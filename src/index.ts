@@ -12,6 +12,9 @@ async function startBot() {
 
   bot.command("start", (ctx) => commandHandler.handleStart(ctx));
   bot.command("help", (ctx) => commandHandler.handleHelp(ctx));
+  bot.command("search", (ctx) => commandHandler.handleSearch(ctx));
+  bot.command("generate", (ctx) => commandHandler.handleImageGeneration(ctx));
+  bot.command("analyze", (ctx) => commandHandler.handleImageAnalysis(ctx));
   bot.command("history", (ctx) => commandHandler.handleSetHistory(ctx));
   bot.command("temp", (ctx) => commandHandler.handleSetTemperature(ctx));
   bot.command("lang", (ctx) => commandHandler.handleSetLanguage(ctx));
@@ -20,10 +23,6 @@ async function startBot() {
   bot.on("message:photo", (ctx) => chatHandler.handleImageMessage(ctx));
   bot.on("message:document", (ctx) => chatHandler.handleDocumentMessage(ctx));
   bot.on("message:voice", (ctx) => chatHandler.handleVoiceMessage(ctx));
-
-  // Add image generation commands
-  bot.command("generate", (ctx) => chatHandler.handleImageGeneration(ctx));
-  bot.command("img", (ctx) => chatHandler.handleImageGeneration(ctx));
 
   bot.catch((err) => {
     const ctx = err.ctx;

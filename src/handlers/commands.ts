@@ -1,6 +1,8 @@
 import { CommandContext, Context } from "grammy";
 import { BOT_CONFIG, MESSAGES } from "../config/config";
 import { OpenAIService } from "../services/ai/OpenAIService";
+import { InputFile } from "grammy";
+import { TextMessageSchema } from "../types/chat";
 
 export class CommandHandler {
   constructor(private aiService: OpenAIService) {}
@@ -60,7 +62,100 @@ export class CommandHandler {
 
     BOT_CONFIG.language = lang;
     
-    // Po zmianie języka, wyświetl pomoc w nowym języku
     await this.handleHelp(ctx);
+  }
+
+  async handleSearch(ctx: CommandContext<Context>): Promise<void> {
+    const query = ctx.match;
+    
+    if (!query || query.trim().length === 0) {
+      await ctx.reply(BOT_CONFIG.language === 'pl'
+        ? "Proszę podać frazę do wyszukania (np. /search najnowsza wersja GPT)"
+        : "Please provide a search query (e.g. /search latest GPT version)");
+      return;
+    }
+
+    try {
+      // Send typing indicator
+      await ctx.replyWithChatAction("typing");
+      
+      // Force web search for this command
+      const response = await this.aiService.generateResponse(query, BOT_CONFIG.language);
+      await ctx.reply(response, { parse_mode: "HTML" });
+    } catch (error) {
+      console.error('Search error:', error);
+      await ctx.reply(BOT_CONFIG.language === 'pl'
+        ? "Przepraszam, wystąpił błąd podczas wyszukiwania. Spróbuj ponownie później."
+        : "Sorry, there was an error during the search. Please try again later.");
+    }
+  }
+
+  async handleImageGeneration(ctx: CommandContext<Context>): Promise<void> {
+    try {
+      const prompt = ctx.match;
+      
+      if (!prompt || prompt.trim().length === 0) {
+        await ctx.reply(BOT_CONFIG.language === 'pl'
+          ? "Proszę podać opis obrazu do wygenerowania (np. /generate zachód słońca nad morzem)"
+          : "Please provide an image description (e.g. /generate sunset over the ocean)");
+        return;
+      }
+
+      // Send status message
+      const statusMessage = await ctx.reply(BOT_CONFIG.language === 'pl'
+        ? "🎨 Generuję obraz...\n⏳ To może potrwać kilka sekund..."
+        : "🎨 Generating image...\n⏳ This may take a few seconds...");
+
+      try {
+        // Generate image
+        const imageBuffer = await this.aiService.generateImage(prompt);
+
+        // Send the image
+        await ctx.replyWithPhoto(
+          new InputFile(imageBuffer, 'generated-image.png'),
+          {
+            caption: BOT_CONFIG.language === 'pl'
+              ? `🎨 Wygenerowany obraz dla:\n"${prompt}"`
+              : `🎨 Generated image for:\n"${prompt}"`
+          }
+        );
+
+        // Delete status message
+        await ctx.api.deleteMessage(ctx.chat.id, statusMessage.message_id);
+      } catch (error) {
+        console.error('Image Generation Error:', error);
+        
+        // Update status message with error
+        await ctx.api.editMessageText(
+          ctx.chat.id,
+          statusMessage.message_id,
+          BOT_CONFIG.language === 'pl'
+            ? "❌ Przepraszam, wystąpił błąd podczas generowania obrazu. Spróbuj ponownie z innym opisem."
+            : "❌ Sorry, there was an error generating the image. Please try again with a different description."
+        );
+      }
+    } catch (error) {
+      console.error('Handler Error:', error);
+      if (ctx.chat?.id) {
+        await ctx.reply(BOT_CONFIG.language === 'pl'
+          ? "Przepraszam, wystąpił błąd podczas przetwarzania komendy. Spróbuj ponownie."
+          : "Sorry, there was an error processing your command. Please try again.");
+      }
+    }
+  }
+
+  async handleImageAnalysis(ctx: CommandContext<Context>): Promise<void> {
+    try {
+      await ctx.reply(BOT_CONFIG.language === 'pl'
+        ? "Aby przeanalizować obraz, wyślij go jako zdjęcie lub plik. Możesz dodać opis w podpisie."
+        : "To analyze an image, send it as a photo or file. You can add a description in the caption.");
+    } catch (error) {
+      console.error('Handler Error:', error);
+      if (ctx.chat?.id) {
+        await ctx.reply(BOT_CONFIG.language === 'pl'
+          ? "Przepraszam, wystąpił błąd podczas przetwarzania komendy. Spróbuj ponownie."
+          : "Sorry, there was an error processing your command. Please try again.");
+      }
+    }
   }
 } 
