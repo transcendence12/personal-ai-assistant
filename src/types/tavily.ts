@@ -6,10 +6,8 @@ export interface TavilySearchResult {
 }
 
 export interface TavilyResponse {
-  query: string;
   results: TavilySearchResult[];
-  search_depth: string;
-  search_id: string;
+  answer?: string;
 }
 
 export interface TavilyServiceInterface {
