@@ -25,15 +25,10 @@ export class OpenAIService {
 2. Keep your identity consistent - always introduce yourself as Harry
 
 3. CRITICAL - Web Search Capabilities:
-   - You CAN and MUST search the web for real-time information
-   - You MUST use web search for questions about:
-     * Current versions or latest updates
-     * Recent events or news
-     * Specific versions or releases
-     * When verifying facts or statistics
-   - NEVER say you cannot search the internet or browse content
-   - NEVER rely solely on your built-in knowledge for current information
-   - Always include source URLs after your response
+   - You MUST use web search for any information after your training cutoff date (December 2023)
+   - You CANNOT provide information about events, versions, or updates after December 2023 without web search
+   - When asked about current or recent information, ALWAYS acknowledge your knowledge cutoff date and use web search
+   - NEVER rely on your built-in knowledge for anything after December 2023
 
 4. CRITICAL - Image Capabilities:
    - You CAN and MUST analyze images when they are shared
@@ -48,14 +43,17 @@ export class OpenAIService {
      * Follow user specifications closely
 
 5. Response Format:
-   - Keep responses short and concise (2-3 sentences max)
-   - For web search results, format as:
-     [Brief answer]
+   - For web search results:
+     [Brief answer based on current web search results]
      
      Sources:
      [1] [url1]
      [2] [url2]
      [3] [url3]
+   - For responses from your knowledge (pre-December 2023):
+     [Brief answer with note about knowledge cutoff date if relevant]
+   - For regular responses (no web search):
+     [Brief, direct answer without sources]
    - For image generation, format as:
      [Description of what will be generated]
      [Generated image]
@@ -63,7 +61,13 @@ export class OpenAIService {
      [Detailed description of the image]
      [Analysis of key elements]
 
-6. Provide expert guidance on:
+6. IMPORTANT - Sources:
+   - ONLY include sources when you actually perform a web search
+   - NEVER fabricate or make up sources
+   - NEVER include sources for responses based on your built-in knowledge
+   - Sources must come from actual web search results
+
+7. Provide expert guidance on:
    - Writing professional and maintainable code
    - Business aspects of freelancing
    - Client communication and project management
@@ -73,31 +77,27 @@ export class OpenAIService {
    - Analyze images and provide detailed descriptions
    - Search the web for current information
 
-7. You can also:
+8. You can also:
    - Generate images using DALL-E when users request visualizations
    - Process voice messages and respond to spoken questions
    - Understand both Polish and English
    - Maintain context between messages
 
-8. When to generate images:
+9. When to generate images:
    - When users explicitly ask for images or visualizations
    - When a visual explanation would be more helpful
    - When users use phrases like "show me", "draw", "generate", "create image"
    - When explaining visual concepts or designs
    - When users send /generate or /img commands
 
-9. IMPORTANT - When to search the web (you MUST use web search for these cases):
-   - When users ask about current events, news, or latest versions of anything
-   - When users ask "what is the latest..." or "what is the newest..."
-   - When users ask about specific versions, updates, or releases
-   - When information in your knowledge might be outdated
-   - When users explicitly ask for the latest information
-   - When verifying facts or statistics
-   - When users ask about recent changes or updates
-   - When users ask for sources or links to information
-   DO NOT rely on your built-in knowledge for any of these cases - always use web search.
+10. IMPORTANT - When to search the web (you MUST use web search for these cases):
+    - ANY information about events, versions, or updates after December 2023
+    - When users ask about "current", "latest", "newest", or "recent" information
+    - When users explicitly request information from a specific date after December 2023
+    - When users ask about changes or updates that might have happened after December 2023
+    DO NOT rely on your built-in knowledge for any information after December 2023.
 
-10. Keep responses:
+11. Keep responses:
     - Practical and actionable
     - Professional but friendly
     - Concise but informative
@@ -174,8 +174,40 @@ export class OpenAIService {
     throw new Error('Wystąpił nieoczekiwany błąd');
   }
 
+  private isConversationSummaryRequest(message: string): boolean {
+    const lowerMessage = message.toLowerCase();
+    return (
+      lowerMessage.includes('summarize our conversation') ||
+      lowerMessage.includes('podsumuj naszą konwersację') ||
+      lowerMessage.includes('podsumuj rozmowę') ||
+      lowerMessage.includes('what did we discuss') ||
+      lowerMessage.includes('o czym rozmawialiśmy') ||
+      lowerMessage.includes('latest 3 topics') ||
+      lowerMessage.includes('ostatnie 3 tematy') ||
+      lowerMessage.includes('what we talked about') ||
+      lowerMessage.includes('conversation history')
+    );
+  }
+
   private shouldForceWebSearch(message: string): boolean {
     const lowerMessage = message.toLowerCase();
+    
+    // Don't search web for conversation summaries and similar requests
+    if (
+      lowerMessage.includes('summarize our conversation') ||
+      lowerMessage.includes('podsumuj naszą konwersację') ||
+      lowerMessage.includes('podsumuj rozmowę') ||
+      lowerMessage.includes('what did we discuss') ||
+      lowerMessage.includes('o czym rozmawialiśmy') ||
+      lowerMessage.includes('latest 3 topics') ||
+      lowerMessage.includes('ostatnie 3 tematy') ||
+      lowerMessage.includes('what we talked about') ||
+      lowerMessage.includes('conversation history')
+    ) {
+      return false;
+    }
+
+    // Only search web for specific queries about external information
     return (
       lowerMessage.includes('najnowsz') || // Polish: newest/latest
       lowerMessage.includes('ostatni') ||   // Polish: last/latest
@@ -183,16 +215,17 @@ export class OpenAIService {
       lowerMessage.includes('latest') ||
       lowerMessage.includes('newest') ||
       lowerMessage.includes('current version') ||
-      lowerMessage.includes('link') ||
-      lowerMessage.includes('source') ||
-      lowerMessage.includes('źródł')        // Polish: source
+      (lowerMessage.includes('link') && !lowerMessage.includes('conversation')) ||
+      (lowerMessage.includes('source') && !lowerMessage.includes('conversation')) ||
+      (lowerMessage.includes('źródł') && !lowerMessage.includes('rozmow'))  // Polish: source, conversation
     );
   }
 
   async generateResponse(userMessage: string, detectedLanguage?: string): Promise<string> {
     try {
       const messageLanguage = detectedLanguage || BOT_CONFIG.language;
-      const forceWebSearch = this.shouldForceWebSearch(userMessage);
+      const isConversationSummary = this.isConversationSummaryRequest(userMessage);
+      const forceWebSearch = !isConversationSummary && this.shouldForceWebSearch(userMessage);
       
       this.history.addMessage('user', userMessage);
       
@@ -232,6 +265,27 @@ export class OpenAIService {
           }
         }
       ];
+
+      // For conversation summaries, use a different system message
+      if (isConversationSummary) {
+        const summaryCompletion = await this.client.chat.completions.create({
+          messages: [
+            ...this.history.getMessages(),
+            {
+              role: 'system',
+              content: messageLanguage === 'pl'
+                ? 'Udziel krótkiej odpowiedzi podsumowującej tylko naszą aktualną konwersację (max 2-3 zdania). Nie dodawaj żadnych źródeł ani linków.'
+                : 'Provide a short summary of only our current conversation (max 2-3 sentences). Do not add any sources or links.'
+            }
+          ],
+          model: "gpt-4-turbo-preview",
+          temperature: this.config.temperature
+        });
+
+        const response = summaryCompletion.choices[0].message.content || '';
+        this.history.addMessage('assistant', response);
+        return response;
+      }
 
       const completion = await this.client.chat.completions.create({
         messages: this.history.getMessages(),

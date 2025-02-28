@@ -20,11 +20,13 @@ export class TavilyService implements TavilyServiceInterface {
       const response = await axios.post(
         `${this.baseUrl}/search`,
         {
-          query,
+          query: `${query} after:2023-12`,  // Force search for content after GPT's cutoff date
           search_depth: 'advanced',
           include_images: false,
           include_answer: true,
-          max_results: 5
+          max_results: 3,
+          time_range: 'month',  // Get results from the last month
+          sort_by: 'date',      // Sort by date to get newest first
         },
         {
           headers: {
@@ -33,6 +35,28 @@ export class TavilyService implements TavilyServiceInterface {
           }
         }
       );
+
+      // If no results found with month range, try without date restriction
+      if (response.data.results.length === 0) {
+        const retryResponse = await axios.post(
+          `${this.baseUrl}/search`,
+          {
+            query,
+            search_depth: 'advanced',
+            include_images: false,
+            include_answer: true,
+            max_results: 3,
+            sort_by: 'date'
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${this.apiKey}`
+            }
+          }
+        );
+        return retryResponse.data;
+      }
 
       return response.data;
     } catch (error) {
