@@ -20,6 +20,11 @@ export const OPENAI_CONFIG = {
     apiKey: process.env.OPENAI_API_KEY || '',
 };
 
+// Tavily configuration
+export const TAVILY_CONFIG = {
+    apiKey: process.env.TAVILY_API_KEY || '',
+};
+
 // Server configuration
 export const SERVER_CONFIG = {
     port: process.env.PORT || 3000,
@@ -33,6 +38,9 @@ export const MESSAGES = {
               "Wpisz /help aby zobaczyć dostępne komendy.",
         help: "🔍 Dostępne komendy:\n" +
               "/help - wyświetla tę pomoc\n" +
+              "/search <fraza> - wyszukuje aktualne informacje w internecie\n" +
+              "/generate <opis> - generuje nowy obraz na podstawie opisu\n" +
+              "/analyze <opis> - analizuje przesłany obraz (możesz dodać opis)\n" +
               "/history <liczba> - ustawia ilość zapamiętanych wiadomości (np. /history 5)\n" +
               "/temp <0.0-2.0> - ustawia kreatywność odpowiedzi (np. /temp 0.7)\n" +
               "/lang <pl|en> - zmienia język bota\n\n" +
@@ -42,7 +50,8 @@ export const MESSAGES = {
               "- Komunikacji z klientami\n" +
               "- Tworzeniu portfolio\n" +
               "- Szukaniu zleceń\n" +
-              "- Najlepszych praktykach programowania",
+              "- Najlepszych praktykach programowania\n" +
+              "- Wyszukiwaniu aktualnych informacji w internecie",
         config: {
             title: "Aktualna konfiguracja",
             language: "Język",
@@ -56,6 +65,9 @@ export const MESSAGES = {
               "Type /help to see available commands.",
         help: "🔍 Available commands:\n" +
               "/help - shows this help\n" +
+              "/search <query> - searches for current information on the web\n" +
+              "/generate <description> - generates a new image from description\n" +
+              "/analyze <description> - analyzes uploaded image (description optional)\n" +
               "/history <number> - sets number of remembered messages (e.g. /history 5)\n" +
               "/temp <0.0-2.0> - sets response creativity (e.g. /temp 0.7)\n" +
               "/lang <pl|en> - changes bot language\n\n" +
@@ -65,7 +77,8 @@ export const MESSAGES = {
               "- Client communication\n" +
               "- Portfolio building\n" +
               "- Finding projects\n" +
-              "- Software development best practices",
+              "- Software development best practices\n" +
+              "- Searching for current information on the web",
         config: {
             title: "Current configuration",
             language: "Language",
@@ -77,7 +90,7 @@ export const MESSAGES = {
 };
 
 // Validate required environment variables
-const requiredEnvVars = ['TELEGRAM_BOT_TOKEN', 'OPENAI_API_KEY'];
+const requiredEnvVars = ['TELEGRAM_BOT_TOKEN', 'OPENAI_API_KEY', 'TAVILY_API_KEY'];
 
 requiredEnvVars.forEach(envVar => {
     if (!process.env[envVar]) {

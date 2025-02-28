@@ -8,6 +8,7 @@ import ffmpeg from 'fluent-ffmpeg';
 import ffmpegPath from '@ffmpeg-installer/ffmpeg';
 import { Readable } from 'stream';
 import axios from 'axios';
+import { TavilyService } from './TavilyService';
 
 interface WhisperResponse {
   text: string;
@@ -18,35 +19,91 @@ export class OpenAIService {
   private client: OpenAI;
   private history: MessageHistoryService;
   private config;
+  private tavilyService: TavilyService;
   private readonly SYSTEM_PROMPT = `You are an AI assistant named Harry. You must always:
 1. Remember that YOU are Harry - an experienced freelance mentor. Never say you are just an AI without a name.
 2. Keep your identity consistent - always introduce yourself as Harry
-3. Provide expert guidance on:
+
+3. CRITICAL - Web Search Capabilities:
+   - You CAN and MUST search the web for real-time information
+   - You MUST use web search for questions about:
+     * Current versions or latest updates
+     * Recent events or news
+     * Specific versions or releases
+     * When verifying facts or statistics
+   - NEVER say you cannot search the internet or browse content
+   - NEVER rely solely on your built-in knowledge for current information
+   - Always include source URLs after your response
+
+4. CRITICAL - Image Capabilities:
+   - You CAN and MUST analyze images when they are shared
+   - You CAN and MUST generate images when requested
+   - For image analysis:
+     * Provide detailed descriptions
+     * Focus on key elements and context
+     * Maintain professional tone
+   - For image generation:
+     * Create detailed prompts
+     * Consider artistic style and composition
+     * Follow user specifications closely
+
+5. Response Format:
+   - Keep responses short and concise (2-3 sentences max)
+   - For web search results, format as:
+     [Brief answer]
+     
+     Sources:
+     [1] [url1]
+     [2] [url2]
+     [3] [url3]
+   - For image generation, format as:
+     [Description of what will be generated]
+     [Generated image]
+   - For image analysis, format as:
+     [Detailed description of the image]
+     [Analysis of key elements]
+
+6. Provide expert guidance on:
    - Writing professional and maintainable code
    - Business aspects of freelancing
    - Client communication and project management
    - Portfolio development
    - Finding projects in the Polish market
    - Best practices in software development
-   - Analyze images and provide a detailed description of the image
+   - Analyze images and provide detailed descriptions
+   - Search the web for current information
 
-4. You can also:
+7. You can also:
    - Generate images using DALL-E when users request visualizations
    - Process voice messages and respond to spoken questions
    - Understand both Polish and English
    - Maintain context between messages
 
-5. When to generate images:
+8. When to generate images:
    - When users explicitly ask for images or visualizations
    - When a visual explanation would be more helpful
    - When users use phrases like "show me", "draw", "generate", "create image"
    - When explaining visual concepts or designs
+   - When users send /generate or /img commands
 
-6. Keep responses:
-   - Practical and actionable
-   - Professional but friendly
-   - Concise but informative
-   - Include image generation when appropriate`;
+9. IMPORTANT - When to search the web (you MUST use web search for these cases):
+   - When users ask about current events, news, or latest versions of anything
+   - When users ask "what is the latest..." or "what is the newest..."
+   - When users ask about specific versions, updates, or releases
+   - When information in your knowledge might be outdated
+   - When users explicitly ask for the latest information
+   - When verifying facts or statistics
+   - When users ask about recent changes or updates
+   - When users ask for sources or links to information
+   DO NOT rely on your built-in knowledge for any of these cases - always use web search.
+
+10. Keep responses:
+    - Practical and actionable
+    - Professional but friendly
+    - Concise but informative
+    - Include image generation when appropriate
+    - Include web search results with sources when relevant
+    - Always mention sources when providing information from web search`;
 
   constructor() {
     ffmpeg.setFfmpegPath(ffmpegPath.path);
@@ -54,7 +111,7 @@ export class OpenAIService {
     const config = ChatConfigSchema.parse({
       model: 'gpt-4',
       temperature: 0.3,
-      maxMessages: 3, // Start with 3 messages, can be changed via command
+      maxMessages: 3,
       maxTokens: 300,
     });
 
@@ -63,6 +120,7 @@ export class OpenAIService {
     this.client = new OpenAI({ apiKey });
     this.history = new MessageHistoryService({ maxMessages: config.maxMessages });
     this.config = config;
+    this.tavilyService = new TavilyService();
     
     // Add system prompt to history
     this.history.addMessage('system', this.SYSTEM_PROMPT);
@@ -116,13 +174,46 @@ export class OpenAIService {
     throw new Error('Wystąpił nieoczekiwany błąd');
   }
 
+  private shouldForceWebSearch(message: string): boolean {
+    const lowerMessage = message.toLowerCase();
+    return (
+      lowerMessage.includes('najnowsz') || // Polish: newest/latest
+      lowerMessage.includes('ostatni') ||   // Polish: last/latest
+      lowerMessage.includes('aktualni') ||  // Polish: current
+      lowerMessage.includes('latest') ||
+      lowerMessage.includes('newest') ||
+      lowerMessage.includes('current version') ||
+      lowerMessage.includes('link') ||
+      lowerMessage.includes('source') ||
+      lowerMessage.includes('źródł')        // Polish: source
+    );
+  }
+
   async generateResponse(userMessage: string, detectedLanguage?: string): Promise<string> {
     try {
       const messageLanguage = detectedLanguage || BOT_CONFIG.language;
+      const forceWebSearch = this.shouldForceWebSearch(userMessage);
       
       this.history.addMessage('user', userMessage);
       
       const tools = [
+        {
+          type: "function" as const,
+          function: {
+            name: "search_web",
+            description: "Search the web for real-time information. REQUIRED when user asks about: current events, latest versions, recent updates, specific versions, or anything that might be outdated in your knowledge.",
+            parameters: {
+              type: "object",
+              properties: {
+                query: {
+                  type: "string",
+                  description: "The search query to find relevant information"
+                }
+              },
+              required: ["query"]
+            }
+          }
+        },
         {
           type: "function" as const,
           function: {
@@ -144,10 +235,10 @@ export class OpenAIService {
 
       const completion = await this.client.chat.completions.create({
         messages: this.history.getMessages(),
-        model: "gpt-4-turbo-preview", // Updated to latest model that better supports tool calls
+        model: "gpt-4-turbo-preview",
         temperature: this.config.temperature,
         tools,
-        tool_choice: "auto"
+        tool_choice: forceWebSearch ? { type: "function", function: { name: "search_web" } } : "auto"
       });
 
       const response = completion.choices[0].message;
@@ -156,6 +247,52 @@ export class OpenAIService {
       if (response.tool_calls && response.tool_calls.length > 0) {
         const toolCall = response.tool_calls[0];
         
+        if (toolCall.function.name === "search_web") {
+          const { query } = JSON.parse(toolCall.function.arguments);
+          const searchResults = await this.tavilyService.search(query);
+
+          // Sort results by score and prepare summary with sources
+          const topResults = searchResults.results
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 3);
+
+          // Prepare content and sources separately
+          const contentSummary = topResults
+            .map(r => r.content)
+            .join('\n\n');
+
+          const sources = topResults
+            .map((r, i) => `[${i + 1}] ${r.url}`)
+            .join('\n');
+
+          this.history.addMessage('system', `Web search results:\n${contentSummary}`);
+
+          // Generate a new response with the search results
+          const followUpCompletion = await this.client.chat.completions.create({
+            messages: [
+              ...this.history.getMessages(),
+              {
+                role: 'system',
+                content: messageLanguage === 'pl'
+                  ? 'Udziel krótkiej i zwięzłej odpowiedzi na podstawie wyników wyszukiwania (max 2-3 zdania). Nie cytuj źródeł w tekście - zostaną dodane automatycznie poniżej.'
+                  : 'Provide a short and concise answer based on the search results (max 2-3 sentences). Do not cite sources in the text - they will be added automatically below.'
+              }
+            ],
+            model: "gpt-4-turbo-preview",
+            temperature: this.config.temperature
+          });
+
+          const finalResponse = followUpCompletion.choices[0].message.content || '';
+          
+          // Combine response with sources
+          const formattedResponse = messageLanguage === 'pl'
+            ? `${finalResponse}\n\nŹródła:\n${sources}`
+            : `${finalResponse}\n\nSources:\n${sources}`;
+
+          this.history.addMessage('assistant', formattedResponse);
+          return formattedResponse;
+        }
+
         if (toolCall.function.name === "generate_image") {
           const { prompt } = JSON.parse(toolCall.function.arguments);
           const imageUrl = await this.generateImage(prompt);
@@ -168,6 +305,11 @@ export class OpenAIService {
             prompt
           });
         }
+      }
+
+      // If we should force web search but no tool call was made, make one
+      if (forceWebSearch) {
+        return this.generateResponse(userMessage, detectedLanguage); // Retry with forced web search
       }
 
       this.history.addMessage('assistant', response.content || '');
